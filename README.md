@@ -1,6 +1,6 @@
 # Awale Project
 
-Python implementation of the Awale game, following the object-oriented structure used in the Puissance 4 TP.
+Python implementation of the Awale game, following the object-oriented structure.
 
 ## Files
 
