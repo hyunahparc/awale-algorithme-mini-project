@@ -10,7 +10,7 @@ The implementation follows the same general structure as the Puissance 4 practic
 
 - `awale.py`: contains the `Awale` class, which stores the game state and implements the rules.
 - `players.py`: contains the player classes: `Human`, `StupidBot`, `GreedyBot`, `MinMax`, `Sommet`, and `MCTS`.
-- `gui.py`: contains the Tkinter graphical interface.
+- `gui.py`: contains the Tkinter graphical interface, including Human vs Bot and Bot vs Bot modes.
 - `main.py`: contains the command-line interface, game runner, and statistics functions.
 - `README.md`: contains basic usage instructions.
 
@@ -221,7 +221,8 @@ It provides:
 - a display of both players' pits,
 - score display,
 - current player display,
-- opponent bot selection,
+- player selection for Human vs Bot or Bot vs Bot games,
+- opponent bot selection, including both MinMax heuristics,
 - a new game button,
 - highlighted last move,
 - animated seed sowing.
@@ -233,7 +234,15 @@ The GUI allows a human player to play against:
 - `MinMax`,
 - `MCTS`.
 
+It can also run computer-vs-computer games by selecting a bot for Player 1 and a bot for Player 2. In that mode, the GUI automatically plays each turn and displays the sowing animation, so the sequence of moves can be followed visually.
+
 For responsiveness, the GUI uses lighter AI parameters than the statistics mode.
+
+GUI-specific options are written after the `gui` mode:
+
+```powershell
+python main.py gui --opponent minmax --gui-minmax-heuristic mobility
+```
 
 ## 11. Statistics
 
@@ -243,7 +252,25 @@ Automatic matches can be launched from the command line:
 python main.py --minmax-depth 2 --mcts-iterations 100 stats --games-count 100
 ```
 
+The MinMax heuristic can also be selected from the command line:
+
+```powershell
+python main.py --minmax-heuristic score stats --games-count 100 --players minmax stupid
+python main.py --minmax-heuristic mobility stats --games-count 100 --players mcts minmax
+```
+
+Statistics/global options are written before the `stats` mode, while options such as `--games-count` and `--players` are specific to the `stats` mode and are written after it.
+
 The statistics mode compares player types two by two. It alternates the starting player to study the influence of playing first.
+
+All experiments below use the following parameters:
+
+- 100 games per matchup,
+- MinMax depth: `2`,
+- MCTS iterations: `100`,
+- MCTS temperature: `sqrt(2)`,
+- maximum turns per automatic game: `300`,
+- starting player alternated from one game to the next.
 
 The result dictionary separates global matchup results from starting-player influence:
 
@@ -254,29 +281,63 @@ The result dictionary separates global matchup results from starting-player infl
 - `kind1_wins_as_starter` and `kind1_wins_as_second`: detailed results for the first strategy.
 - `kind2_wins_as_starter` and `kind2_wins_as_second`: detailed results for the second strategy.
 
-Example table to complete after running experiments:
+### Experiment A - MinMax Score Heuristic
+
+Command:
+
+```powershell
+python main.py --minmax-depth 2 --minmax-heuristic score --mcts-iterations 100 stats --games-count 100
+```
 
 | Matchup | Player 1 Wins | Player 2 Wins | Draws |
 | --- | ---: | ---: | ---: |
-| StupidBot vs GreedyBot | 2 | 97 | 1 |
+| StupidBot vs GreedyBot | 3 | 95 | 2 |
 | StupidBot vs MinMax | 0 | 100 | 0 |
-| StupidBot vs MCTS | 1 | 99 | 0 |
+| StupidBot vs MCTS | 0 | 99 | 1 |
 | GreedyBot vs MinMax | 50 | 50 | 0 |
-| GreedyBot vs MCTS | 31 | 61 | 8 |
-| MinMax vs MCTS | 88 | 11 | 1 |
+| GreedyBot vs MCTS | 17 | 79 | 4 |
+| MinMax vs MCTS | 87 | 9 | 4 |
 
 Starting-player influence:
 
 | Matchup | Starter Wins | Second Player Wins | Draws |
 | --- | ---: | ---: | ---: |
-| StupidBot vs GreedyBot | 48 | 51 | 1 |
+| StupidBot vs GreedyBot | 49 | 49 | 2 |
 | StupidBot vs MinMax | 50 | 50 | 0 |
-| StupidBot vs MCTS | 49 | 51 | 0 |
+| StupidBot vs MCTS | 49 | 50 | 1 |
 | GreedyBot vs MinMax | 0 | 100 | 0 |
-| GreedyBot vs MCTS | 47 | 45 | 8 |
-| MinMax vs MCTS | 46 | 53 | 1 |
+| GreedyBot vs MCTS | 48 | 48 | 4 |
+| MinMax vs MCTS | 44 | 52 | 4 |
 
-These results show that stronger strategies generally outperform `StupidBot`. They also show that the starting-player advantage is not uniform. In the `GreedyBot vs MinMax` matchup, the second player won every game in this experiment, while other matchups were more balanced between starter and second player.
+### Experiment B - MinMax Mobility Heuristic
+
+Command:
+
+```powershell
+python main.py --minmax-depth 2 --minmax-heuristic mobility --mcts-iterations 100 stats --games-count 100
+```
+
+| Matchup | Player 1 Wins | Player 2 Wins | Draws |
+| --- | ---: | ---: | ---: |
+| StupidBot vs GreedyBot | 4 | 96 | 0 |
+| StupidBot vs MinMax | 0 | 100 | 0 |
+| StupidBot vs MCTS | 0 | 99 | 1 |
+| GreedyBot vs MinMax | 50 | 50 | 0 |
+| GreedyBot vs MCTS | 27 | 69 | 4 |
+| MinMax vs MCTS | 93 | 5 | 2 |
+
+Starting-player influence:
+
+| Matchup | Starter Wins | Second Player Wins | Draws |
+| --- | ---: | ---: | ---: |
+| StupidBot vs GreedyBot | 52 | 48 | 0 |
+| StupidBot vs MinMax | 50 | 50 | 0 |
+| StupidBot vs MCTS | 50 | 49 | 1 |
+| GreedyBot vs MinMax | 0 | 100 | 0 |
+| GreedyBot vs MCTS | 50 | 46 | 4 |
+| MinMax vs MCTS | 45 | 53 | 2 |
+
+These results show that stronger strategies generally outperform `StupidBot`. They also show that the starting-player advantage is not uniform. In the `GreedyBot vs MinMax` matchup, the second player won every game in both experiments, while other matchups were more balanced between starter and second player. With the selected parameters, MinMax performs better than MCTS, which can be explained by the limited number of MCTS iterations and by the fact that MCTS uses random simulations.
 
 ## 12. Limits and Possible Improvements
 
