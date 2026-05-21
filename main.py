@@ -46,6 +46,7 @@ def build_player(
     identifier: int,
     minmax_depth: int = 2,
     mcts_iterations: int = 100,
+    minmax_heuristic: str = "score",
 ) -> PlayerBase:
     if kind == "human":
         return Human(game, identifier, f"Human {identifier}")
@@ -54,7 +55,13 @@ def build_player(
     if kind == "greedy":
         return GreedyBot(game, identifier, f"GreedyBot {identifier}")
     if kind == "minmax":
-        return MinMax(game, identifier, max_depth=minmax_depth, name=f"MinMax {identifier}")
+        return MinMax(
+            game,
+            identifier,
+            max_depth=minmax_depth,
+            heuristic=minmax_heuristic,
+            name=f"MinMax {identifier}",
+        )
     if kind == "mcts":
         return MCTS(game, identifier, iterations=mcts_iterations, name=f"MCTS {identifier}")
     raise ValueError(f"Unknown player type: {kind}.")
@@ -66,6 +73,7 @@ def compare_players(
     games_count: int = 10,
     minmax_depth: int = 2,
     mcts_iterations: int = 100,
+    minmax_heuristic: str = "score",
     max_turns: int = 300,
 ) -> dict[str, int]:
     """Run several games between two player types."""
@@ -84,11 +92,11 @@ def compare_players(
     for game_index in range(games_count):
         game = Awale()
         if game_index % 2 == 0:
-            player1 = build_player(kind1, game, 1, minmax_depth, mcts_iterations)
-            player2 = build_player(kind2, game, 2, minmax_depth, mcts_iterations)
+            player1 = build_player(kind1, game, 1, minmax_depth, mcts_iterations, minmax_heuristic)
+            player2 = build_player(kind2, game, 2, minmax_depth, mcts_iterations, minmax_heuristic)
         else:
-            player1 = build_player(kind2, game, 1, minmax_depth, mcts_iterations)
-            player2 = build_player(kind1, game, 2, minmax_depth, mcts_iterations)
+            player1 = build_player(kind2, game, 1, minmax_depth, mcts_iterations, minmax_heuristic)
+            player2 = build_player(kind1, game, 2, minmax_depth, mcts_iterations, minmax_heuristic)
 
         winner = play_game(player1, player2, display=False, max_turns=max_turns)
         if winner == 0:
@@ -119,8 +127,22 @@ def compare_players(
 
 def run_game(args: argparse.Namespace) -> None:
     game = Awale()
-    player1 = build_player(args.player1, game, 1, args.minmax_depth, args.mcts_iterations)
-    player2 = build_player(args.player2, game, 2, args.minmax_depth, args.mcts_iterations)
+    player1 = build_player(
+        args.player1,
+        game,
+        1,
+        args.minmax_depth,
+        args.mcts_iterations,
+        args.minmax_heuristic,
+    )
+    player2 = build_player(
+        args.player2,
+        game,
+        2,
+        args.minmax_depth,
+        args.mcts_iterations,
+        args.minmax_heuristic,
+    )
     game.print_board()
     winner = play_game(player1, player2, display=True, max_turns=args.max_turns)
     print(f"Winner: {winner}")
@@ -129,8 +151,15 @@ def run_game(args: argparse.Namespace) -> None:
 def run_gui(args: argparse.Namespace) -> None:
     game = Awale()
     player1 = Human(game, 1)
-    player2 = build_player(args.opponent, game, 2, args.gui_minmax_depth, args.gui_mcts_iterations)
-    gui = AwaleGUI(game, player1, player2)
+    player2 = build_player(
+        args.opponent,
+        game,
+        2,
+        args.gui_minmax_depth,
+        args.gui_mcts_iterations,
+        args.gui_minmax_heuristic,
+    )
+    gui = AwaleGUI(game, player1, player2, minmax_heuristic=args.gui_minmax_heuristic)
     gui.run()
 
 
@@ -139,6 +168,7 @@ def main_gui() -> None:
         opponent="greedy",
         gui_minmax_depth=1,
         gui_mcts_iterations=50,
+        gui_minmax_heuristic="score",
     )
     run_gui(args)
 
@@ -151,6 +181,7 @@ def run_stats(args: argparse.Namespace) -> None:
             games_count=args.games_count,
             minmax_depth=args.minmax_depth,
             mcts_iterations=args.mcts_iterations,
+            minmax_heuristic=args.minmax_heuristic,
             max_turns=args.max_turns,
         )
         print(f"{player1} vs {player2}: {stats}")
@@ -159,6 +190,7 @@ def run_stats(args: argparse.Namespace) -> None:
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Awale game with MinMax, MCTS and GUI")
     parser.add_argument("--minmax-depth", type=int, default=2)
+    parser.add_argument("--minmax-heuristic", choices=("score", "mobility"), default="score")
     parser.add_argument("--mcts-iterations", type=int, default=100)
     parser.add_argument("--max-turns", type=int, default=300)
 
@@ -171,6 +203,7 @@ def build_parser() -> argparse.ArgumentParser:
         default="greedy",
     )
     gui_parser.add_argument("--gui-minmax-depth", type=int, default=1)
+    gui_parser.add_argument("--gui-minmax-heuristic", choices=("score", "mobility"), default="score")
     gui_parser.add_argument("--gui-mcts-iterations", type=int, default=50)
 
     game_parser = subparsers.add_parser("game", help="Play one console game")

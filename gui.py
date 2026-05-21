@@ -10,44 +10,65 @@ from players import GreedyBot, Human, MCTS, MinMax, PlayerBase, StupidBot
 class AwaleGUI:
     """Tkinter interface for displaying and playing an Awale game."""
 
-    def __init__(self, game: Awale, player1: PlayerBase, player2: PlayerBase) -> None:
+    def __init__(
+        self,
+        game: Awale,
+        player1: PlayerBase,
+        player2: PlayerBase,
+        minmax_heuristic: str = "score",
+    ) -> None:
         self.__game = game
         self.__players = {
             1: player1,
             2: player2,
         }
+        self.__minmax_heuristic = minmax_heuristic
         self.__last_move: tuple[int, int] | None = None
         self.__animation_board: list[list[int]] | None = None
         self.__animation_position: tuple[int, int] | None = None
         self.__waiting_for_bot = False
+        self.__game_over_announced = False
 
         self.__window = tk.Tk()
         self.__window.title("Awale")
 
-        self.__bot_choice = tk.StringVar(value=player2.__class__.__name__)
-        tk.Label(self.__window, text="Opponent").grid(row=0, column=0, sticky="e", padx=5)
+        self.__player1_choice = tk.StringVar(value=self.__player_label(player1, minmax_heuristic))
+        self.__player2_choice = tk.StringVar(value=self.__player_label(player2, minmax_heuristic))
+
+        tk.Label(self.__window, text="Player 1").grid(row=0, column=0, sticky="e", padx=5)
         tk.OptionMenu(
             self.__window,
-            self.__bot_choice,
+            self.__player1_choice,
+            "Human",
             "StupidBot",
             "GreedyBot",
-            "MinMax",
+            "MinMax score",
+            "MinMax mobility",
             "MCTS",
-            command=lambda _choice: self.__restart_game(),
         ).grid(row=0, column=1, columnspan=2, sticky="we", padx=5)
+
+        tk.Label(self.__window, text="Player 2").grid(row=0, column=3, sticky="e", padx=5)
+        tk.OptionMenu(
+            self.__window,
+            self.__player2_choice,
+            "StupidBot",
+            "GreedyBot",
+            "MinMax score",
+            "MinMax mobility",
+            "MCTS",
+        ).grid(row=0, column=4, columnspan=2, sticky="we", padx=5)
 
         tk.Button(
             self.__window,
             text="New game",
             command=self.__restart_game,
-        ).grid(row=0, column=3, columnspan=2, sticky="we", padx=5)
+        ).grid(row=1, column=0, columnspan=6, sticky="we", padx=5, pady=5)
 
         self.__status_label = tk.Label(self.__window, text="", font=("Arial", 14))
-        self.__status_label.grid(row=1, column=0, columnspan=6, pady=10)
+        self.__status_label.grid(row=2, column=0, columnspan=6, pady=10)
 
-        self.__score_label = tk.Label(self.__window, text="", font=("Arial", 12))
-        self.__score_label.grid(row=2, column=0, columnspan=6, pady=5)
-
+        self.__player1_label: tk.Label | None = None
+        self.__player2_label: tk.Label | None = None
         self.__pit_buttons: dict[tuple[int, int], tk.Button] = {}
         self.__create_board()
         self.__refresh()
@@ -56,6 +77,8 @@ class AwaleGUI:
         self.__window.mainloop()
 
     def __create_board(self) -> None:
+        self.__player2_label = tk.Label(self.__window, text="", font=("Arial", 12))
+        self.__player2_label.grid(row=3, column=0, columnspan=6, pady=(5, 0))
         for pit in range(Awale.NB_PITS):
             button = tk.Button(
                 self.__window,
@@ -77,6 +100,9 @@ class AwaleGUI:
             button.grid(row=5, column=pit, padx=5, pady=5)
             self.__pit_buttons[(1, pit)] = button
 
+        self.__player1_label = tk.Label(self.__window, text="", font=("Arial", 12))
+        self.__player1_label.grid(row=6, column=0, columnspan=6, pady=(0, 5))
+
     def __refresh(self) -> None:
         board = self.__animation_board or self.__game.get_board()
         scores = self.__game.get_scores()
@@ -86,7 +112,10 @@ class AwaleGUI:
             player, pit = self.__last_move
             status += f" | Last move: Player {player}, pit {pit}"
         self.__status_label.config(text=status)
-        self.__score_label.config(text=f"Scores - Player 1: {scores[0]} | Player 2: {scores[1]}")
+        if self.__player1_label is not None:
+            self.__player1_label.config(text=f"Player 1 - Score: {scores[0]}")
+        if self.__player2_label is not None:
+            self.__player2_label.config(text=f"Player 2 - Score: {scores[1]}")
 
         for pit in range(Awale.NB_PITS):
             player1_color = "SystemButtonFace"
@@ -105,7 +134,8 @@ class AwaleGUI:
             self.__pit_buttons[(1, pit)].config(text=str(board[0][pit]), bg=player1_color)
             self.__pit_buttons[(2, pit)].config(text=str(board[1][pit]), bg=player2_color)
 
-        if self.__game.is_finished():
+        if self.__game.is_finished() and not self.__game_over_announced:
+            self.__game_over_announced = True
             winner = self.__game.get_winner()
             if winner == 0:
                 message = "Draw"
@@ -118,7 +148,10 @@ class AwaleGUI:
             return
 
         current_player = self.__game.get_current_player()
+        player = self.__players[current_player]
 
+        if not isinstance(player, Human):
+            return
         if current_player != 1:
             return
 
@@ -126,10 +159,8 @@ class AwaleGUI:
             messagebox.showwarning("Illegal move", "This pit cannot be played.")
             return
 
-        human_player = self.__players[current_player]
-        if isinstance(human_player, Human):
-            human_player.set_mouse_move(pit)
-            pit = human_player.choose_move()
+        player.set_mouse_move(pit)
+        pit = player.choose_move()
 
         self.__last_move = (current_player, pit)
         self.__refresh()
@@ -147,35 +178,46 @@ class AwaleGUI:
         self.__last_move = (player, pit)
         self.__refresh()
 
-        if not self.__game.is_finished() and self.__game.get_current_player() != 1:
-            self.__window.after(700, self.__play_bot_turn_if_needed)
-            return
-
         self.__waiting_for_bot = False
+        self.__continue_automatic_game()
 
-    def __play_bot_turn_if_needed(self) -> None:
+    def __continue_automatic_game(self) -> None:
         if self.__game.is_finished():
             return
 
         current_player = self.__game.get_current_player()
-        if current_player == 1:
+        if isinstance(self.__players[current_player], Human):
+            return
+
+        self.__waiting_for_bot = True
+        self.__window.after(700, self.__play_computer_turn)
+
+    def __play_computer_turn(self) -> None:
+        if self.__game.is_finished():
             self.__waiting_for_bot = False
             return
 
-        move = self.__players[current_player].choose_move()
+        current_player = self.__game.get_current_player()
+        player = self.__players[current_player]
+        if isinstance(player, Human):
+            self.__waiting_for_bot = False
+            return
+
+        move = player.choose_move()
         self.__start_sowing_animation(
             current_player,
             move,
-            lambda selected=move, player=current_player: self.__finish_bot_move(selected, player),
+            lambda selected=move, player_id=current_player: self.__finish_computer_move(selected, player_id),
         )
 
-    def __finish_bot_move(self, move: int, player: int) -> None:
+    def __finish_computer_move(self, move: int, player: int) -> None:
         self.__animation_board = None
         self.__animation_position = None
         self.__game.play_move(move)
         self.__last_move = (player, move)
         self.__waiting_for_bot = False
         self.__refresh()
+        self.__continue_automatic_game()
 
     def __start_sowing_animation(
         self,
@@ -208,21 +250,36 @@ class AwaleGUI:
     def __restart_game(self) -> None:
         self.__game = Awale()
         self.__players = {
-            1: Human(self.__game, 1),
-            2: self.__build_bot(self.__bot_choice.get(), self.__game, 2),
+            1: self.__build_player(self.__player1_choice.get(), self.__game, 1),
+            2: self.__build_player(self.__player2_choice.get(), self.__game, 2),
         }
         self.__last_move = None
         self.__animation_board = None
         self.__animation_position = None
         self.__waiting_for_bot = False
+        self.__game_over_announced = False
         self.__refresh()
+        self.__continue_automatic_game()
 
-    def __build_bot(self, bot_name: str, game: Awale, identifier: int) -> PlayerBase:
-        normalized_name = bot_name.lower()
+    def __build_player(self, player_name: str, game: Awale, identifier: int) -> PlayerBase:
+        normalized_name = player_name.lower()
+        if normalized_name == "human":
+            return Human(game, identifier)
         if normalized_name in ("stupidbot", "stupid"):
             return StupidBot(game, identifier)
-        if normalized_name == "minmax":
-            return MinMax(game, identifier, max_depth=1)
+        if normalized_name in ("minmax score", "minmax"):
+            self.__minmax_heuristic = "score"
+            return MinMax(game, identifier, max_depth=1, heuristic=self.__minmax_heuristic)
+        if normalized_name == "minmax mobility":
+            self.__minmax_heuristic = "mobility"
+            return MinMax(game, identifier, max_depth=1, heuristic=self.__minmax_heuristic)
         if normalized_name == "mcts":
             return MCTS(game, identifier, iterations=50)
         return GreedyBot(game, identifier)
+
+    def __player_label(self, player: PlayerBase, minmax_heuristic: str) -> str:
+        if isinstance(player, Human):
+            return "Human"
+        if isinstance(player, MinMax):
+            return f"MinMax {minmax_heuristic}"
+        return player.__class__.__name__
