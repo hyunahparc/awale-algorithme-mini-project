@@ -102,7 +102,7 @@ The interface is built with Tkinter. It displays:
 
 Example screenshot:
 
-![Awale GUI](docs/awale_gui.png)
+<img src="docs/awale_gui.png" alt="Awale GUI" width="500">
 
 ## Useful Checks
 
