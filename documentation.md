@@ -4,8 +4,6 @@
 
 This project implements the Awale board game in Python with an object-oriented architecture. The goal is to provide a playable game engine, several player strategies, a graphical interface, and automatic match statistics.
 
-The implementation follows the same general structure as the Puissance 4 practical work: one model class for the game rules, a common player interface, several bot classes, and a command-line runner.
-
 ## 2. Project Structure
 
 - `awale.py`: contains the `Awale` class, which stores the game state and implements the rules.
